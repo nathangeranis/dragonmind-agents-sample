@@ -1,0 +1,77 @@
+# Build with warnings as errors, run the unit suite, then run the integration suite against a real
+# PostgreSQL with pgvector and Apache AGE. The integration tests have no in-memory fallback and no
+# skip path, so a green run here means the real stack worked.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The knowledge layer is a pinned submodule and the solution references its projects by
+          # relative path. Without this the restore fails on a missing project.
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Dragonmind.Agents.sln
+
+      # Warnings as errors lives on this command rather than in a csproj, so a local build stays
+      # workable while nothing warning-shaped can reach main.
+      - name: Build
+        run: dotnet build Dragonmind.Agents.sln -c Release --no-restore -warnaserror
+
+      - name: Unit tests
+        run: >
+          dotnet test tests/Dragonmind.Agents.UnitTests
+          -c Release --no-build --collect:"XPlat Code Coverage"
+
+      # Proves the headline claim of the README: the walkthrough runs with no API key and no network.
+      # If anything ever made a provider or a database mandatory, this step is what notices.
+      - name: Walkthrough runs with no key and no network
+        run: dotnet run --project src/Dragonmind.Agents.Sample -c Release --no-build
+
+      - name: Start PostgreSQL with pgvector and Apache AGE
+        run: docker compose up -d --build --wait db
+
+      - name: Integration tests
+        env:
+          STEWARD_TEST_CONNECTION: "Host=localhost;Port=5456;Database=steward;Username=steward"
+        run: dotnet test tests/Dragonmind.Agents.IntegrationTests -c Release --no-build
+
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker compose down -v
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

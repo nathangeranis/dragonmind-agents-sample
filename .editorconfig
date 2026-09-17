@@ -1,0 +1,100 @@
+root = true
+
+# ===========================================================================
+# Globalization analyzers.
+#
+# This repository folds identifiers - intent names decoded from model output,
+# service names, relationship predicates - and compares the result against
+# ASCII literals. Turkish and Azeri fold uppercase 'I' to the dotless 'ı' and
+# lowercase 'i' to the dotted 'İ', so on such a host those comparisons stop
+# matching and the value is dropped. That failure is silent by construction:
+# a classification that stops matching falls to the "could not classify" arm,
+# which is itself a legitimate outcome, so nothing looks wrong. There is no
+# culture configuration anywhere here, so the culture is whatever the host OS
+# says it is.
+#
+# Severities live here rather than in MSBuild because these rules ship
+# disabled by default, and an .editorconfig severity is what turns them on for
+# both the build and the IDE. (EnableNETAnalyzers is already the SDK default
+# for net10.0.)
+#
+# CA1304 and CA1311 cover ToUpper/ToLower directly and are errors: a new
+# culture-sensitive fold cannot reach main without an explicit suppression.
+# CA1310 is a correctness rule about StartsWith/EndsWith and is a warning,
+# because each call needs its own judgement about whether ordinal changes
+# behaviour.
+#
+# CA1305 and CA1307 are deliberately NOT enabled. They concern number and date
+# formatting, and spelling comparisons out explicitly - not identifier folding,
+# which is what this block exists for. Enabling them is a standalone decision.
+# ===========================================================================
+[*.cs]
+dotnet_diagnostic.CA1304.severity = error
+dotnet_diagnostic.CA1311.severity = error
+dotnet_diagnostic.CA1310.severity = warning
+
+# ===========================================================================
+# IDE0390 / IDE0391 - the replacement for the deleted CS1998.
+#
+# CS1998 ("This async method lacks 'await' operators and will run
+# synchronously") is gone. Not suppressed, not downgraded to none - deleted
+# from the compiler in dotnet/roslyn#80144, after dotnet/roslyn#77001 decided
+# it was doing more harm than good: the usual "fix" was a meaningless
+# `await Task.FromResult(...)`, which buys a state machine and hides nothing.
+#
+# Roslyn shipped the detection back as opt-in IDE analyzers
+# (dotnet/roslyn#81835), split in two:
+#
+#   IDE0390  ordinary methods and lambdas
+#   IDE0391  interface implementations and overrides
+#
+# The split exists because the second group is the contentious one - the
+# signature is forced by a contract, so an await-free body can be entirely
+# correct and the only available fix is to drop `async` and return
+# Task.CompletedTask. Both are errors here.
+#
+# These are IDE-layer rules, so a severity here is only half of what they
+# need - <EnforceCodeStyleInBuild> in Directory.Build.props is the other half.
+# With the property but no severity they emit nothing at build time. With the
+# severity but no property they are editor-only. Removing either silently
+# disables the guard.
+# ===========================================================================
+dotnet_diagnostic.IDE0390.severity = error
+dotnet_diagnostic.IDE0391.severity = error
+
+# ===========================================================================
+# xUnit1051 - suppressed for test code only.
+#
+# xunit.v3 ships an analyzer that flags every call to a method taking a
+# CancellationToken where the call site does not pass
+# TestContext.Current.CancellationToken explicitly. It is a responsiveness
+# suggestion, not a correctness rule: that token only fires when an external
+# test run is cancelled, such as a CI timeout killing the process.
+#
+# Re-measure rather than trusting this number - it drifts every time a test is
+# added. Flip the severity below to `warning` and run:
+#
+#   dotnet build Dragonmind.Agents.sln -c Release --no-incremental
+#
+# At the time of writing that reported 22 violations: 16 in
+# tests/Dragonmind.Agents.UnitTests/TurnOrchestratorTests.cs, 5 in
+# tests/Dragonmind.Agents.IntegrationTests/CorrectionTurnIntegrationTests.cs,
+# and 1 in HashEmbeddingGeneratorTests.cs. Every one is an ordinary in-process
+# call such as `await orchestrator.RunAsync(new Interaction("..."), Fleet(true))`.
+# Those tests do no I/O worth cancelling and complete in about a second, so
+# there is nothing for a cancellation to make more responsive.
+#
+# The reason to suppress rather than comply is specific to what this
+# repository is for: TurnOrchestratorTests is one of the files a reader is
+# meant to learn the pattern from, and threading
+# `TestContext.Current.CancellationToken` through every call site would add a
+# trailing argument to every line that demonstrates a turn, for no
+# behavioural gain. That is a different trade from the CA and IDE rules above,
+# which sit at zero violations and guard against defect classes with real
+# history behind them.
+#
+# Scoped to tests/ only. The analyzer cannot fire outside a test project, but
+# the explicit path keeps this visible as a test-only decision.
+# ===========================================================================
+[tests/**/*.cs]
+dotnet_diagnostic.xUnit1051.severity = none

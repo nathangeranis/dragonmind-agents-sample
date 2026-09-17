@@ -1,0 +1,60 @@
+dragonmind-agents-sample
+Copyright (c) 2026 nathangeranis
+Licensed under the MIT License. See LICENSE.
+
+This repository consumes the following third-party components. Each is a separate project under its
+own licence; none of their code is vendored here.
+
+--------------------------------------------------------------------------------
+Toon.DotNet
+    https://github.com/CharlesHunt/ToonDotNet
+    https://www.nuget.org/packages/Toon.DotNet
+    MIT License, Copyright (c) 2025 ToonFormat Contributors
+
+    Consumed as a NuGet package. Encodes and decodes the structured output every agent in this
+    repository reads and writes.
+
+--------------------------------------------------------------------------------
+TOON (Token-Oriented Object Notation) - the format specification
+    https://github.com/toon-format/toon
+    MIT License
+
+    The open specification the notation above implements. Not a dependency; listed because this
+    repository's prompts teach the format and a reader may want the authoritative definition.
+
+--------------------------------------------------------------------------------
+dragonmind-knowledge
+    https://github.com/nathangeranis/dragonmind-knowledge
+    MIT License, Copyright (c) 2026 nathangeranis
+
+    Consumed as a git submodule at knowledge/, pinned to the tag v0.1.0. Provides the scoped memory
+    the agents here read and write: semantic retrieval over pgvector, a fact graph in Apache AGE,
+    and the anti-corruption-layer facade in front of both.
+
+--------------------------------------------------------------------------------
+Microsoft.Extensions.AI
+    https://github.com/dotnet/extensions
+    MIT License, Copyright (c) .NET Foundation and Contributors
+
+    Consumed as NuGet packages. Supplies the IChatClient abstraction every agent consumes, and the
+    OpenAI-compatible provider the composition root uses when a real model is configured.
+
+--------------------------------------------------------------------------------
+Microsoft.Extensions.* and Microsoft.EntityFrameworkCore.Relational
+    https://github.com/dotnet/runtime
+    https://github.com/dotnet/efcore
+    MIT License, Copyright (c) .NET Foundation and Contributors
+
+    Consumed as NuGet packages: DependencyInjection(.Abstractions), Logging.Abstractions,
+    Logging.Console, Caching.Memory, and EntityFrameworkCore.Relational. The last is a direct
+    version pin rather than a feature dependency - see the comment in the integration test project
+    file for the assembly conflict it avoids.
+
+--------------------------------------------------------------------------------
+xUnit.net, Moq, coverlet, Microsoft.NET.Test.Sdk
+    https://github.com/xunit/xunit  (Apache License 2.0; includes xunit.runner.visualstudio)
+    https://github.com/devlooped/moq  (BSD 3-Clause License)
+    https://github.com/coverlet-coverage/coverlet  (MIT License)
+    https://github.com/microsoft/vstest  (MIT License)
+
+    Test-only dependencies, consumed as NuGet packages.

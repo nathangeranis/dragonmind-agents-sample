@@ -1,0 +1,56 @@
+<Project>
+
+  <!--
+    Solution-wide build settings. Every project inherits these; MSBuild imports the nearest
+    Directory.Build.props walking up from each .csproj.
+
+    Note what that means for the submodule: projects under knowledge/ find the Directory.Build.props
+    at the root of THAT repository first and stop there, so this file governs only this repository's
+    projects. The two sets of settings cannot interfere with each other.
+
+    ==========================================================================================
+    EnforceCodeStyleInBuild
+    ==========================================================================================
+    The C# compiler no longer emits CS1998 ("This async method lacks 'await' operators and will
+    run synchronously"). It was not downgraded or suppressed - it was deleted from the compiler
+    in dotnet/roslyn#80144, after dotnet/roslyn#77001 concluded the warning was doing more harm
+    than good: people silenced it with meaningless `await Task.FromResult(...)` calls, which cost
+    a state machine and hide nothing.
+
+    Roslyn shipped a replacement in dotnet/roslyn#81835 - IDE0390 and IDE0391 - but as opt-in IDE
+    code-style analyzers rather than compiler warnings. Two things are needed to make an IDE rule
+    fail a command-line or CI build: this property, and an explicit severity in .editorconfig.
+    Neither alone is enough. With the property set but no severity entry, IDE0390 produces nothing
+    at build time. With the severity but no property, it is editor-only. Removing either silently
+    disables the guard, which is why both carry a comment pointing at the other.
+  -->
+  <PropertyGroup>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
+    ==========================================================================================
+    GenerateDocumentationFile - so that CS1570 (malformed XML doc) fails the build
+    ==========================================================================================
+    The compiler only parses /// comments as XML when it is asked to emit a documentation file.
+    Without this, a doc comment can carry unbalanced tags indefinitely: the build stays green,
+    -warnaserror stays green, and nothing notices until someone reads the file. In a repository
+    whose doc comments are a large part of what it is for, that matters more than usual.
+
+    The point is CS1570 specifically. The completeness diagnostics are suppressed, because the
+    rule here is that whatever comments exist must parse - not that every public member must carry
+    one:
+
+      CS1591  missing XML comment for a publicly visible member
+      CS1573  some parameters documented, others not
+      CS1574  cref pointing at something that will not resolve
+
+    With those suppressed, CI's -warnaserror turns any future malformed doc comment into a failed
+    build without also demanding a doc-completeness pass.
+  -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1574</NoWarn>
+  </PropertyGroup>
+
+</Project>

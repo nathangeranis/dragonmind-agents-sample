@@ -1,0 +1,42 @@
+name: dragonmind-agents-sample
+
+services:
+  # PostgreSQL with pgvector and Apache AGE, built from the image definition inside the
+  # dragonmind-knowledge submodule rather than copied here. The knowledge layer owns what its
+  # database needs; duplicating that Dockerfile would mean two definitions to keep in step, and the
+  # one in this repository would be the one that rotted.
+  #
+  # Bound to 127.0.0.1 on a port of its own so it can run alongside the knowledge repository's own
+  # stack without a clash. Trust auth, local only: there are no credentials in this repository.
+  db:
+    build: ./knowledge/docker/postgres
+    image: dragonmind-agents-sample-postgres:local
+    command: ["postgres", "-c", "shared_preload_libraries=age"]
+    environment:
+      POSTGRES_DB: steward
+      POSTGRES_USER: steward
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:${STEWARD_DB_PORT:-5456}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U steward -d steward"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # The whole suite against that database, in one command.
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: docker/tests/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      STEWARD_TEST_CONNECTION: "Host=db;Port=5432;Database=steward;Username=steward"
+
+volumes:
+  pgdata:

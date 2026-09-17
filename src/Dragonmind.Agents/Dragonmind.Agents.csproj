@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dragonmind.Agents</RootNamespace>
+    <AssemblyName>Dragonmind.Agents</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dragonmind.Agents.UnitTests" />
+  </ItemGroup>
+
+  <!--
+    Dragonmind.Core only. Referencing Dragonmind.Knowledge here would let an agent name a
+    persistence type, and the project graph is what makes that impossible - the architecture
+    tests only have to prove it stayed that way. Core carries the facade contract, ScopeId and
+    the DTOs; Knowledge carries EF Core, Npgsql and Pgvector, and is referenced solely by the
+    composition root and the integration tests.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\knowledge\src\Dragonmind.Core\Dragonmind.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the version knowledge/src/Dragonmind.Core builds against, so the submodule
+         cannot pull a second copy of the abstractions into the graph. -->
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.8.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Toon.DotNet" Version="1.6.1" />
+  </ItemGroup>
+
+</Project>

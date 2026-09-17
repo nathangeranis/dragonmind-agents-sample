@@ -1,0 +1,5 @@
+# Normalize line endings so shell scripts, YAML and Dockerfiles work from any clone.
+* text=auto eol=lf
+*.sh text eol=lf
+*.sln text eol=crlf
+*.png binary

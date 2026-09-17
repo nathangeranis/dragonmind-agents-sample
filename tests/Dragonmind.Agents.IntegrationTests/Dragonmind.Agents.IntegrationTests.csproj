@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="8.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!--
+      Direct pin, matching knowledge/src/Dragonmind.Knowledge's own Microsoft.EntityFrameworkCore
+      10.0.3. Without it this project's restore graph resolves
+      Microsoft.EntityFrameworkCore.Relational to the 10.0.1 that
+      Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0 depends on, rather than the 10.0.3 that
+      Dragonmind.Knowledge builds against, and the two copies collide at link time as MSB3277.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\knowledge\src\Dragonmind.Core\Dragonmind.Core.csproj" />
+    <ProjectReference Include="..\..\knowledge\src\Dragonmind.Knowledge\Dragonmind.Knowledge.csproj" />
+    <ProjectReference Include="..\..\src\Dragonmind.Agents\Dragonmind.Agents.csproj" />
+  </ItemGroup>
+
+</Project>
