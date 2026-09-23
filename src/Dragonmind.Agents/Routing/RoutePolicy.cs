@@ -126,7 +126,7 @@ public sealed class RoutePolicy : IRoutePolicy
     public const string ChangeWindowClosed =
         "the change window is closed, so no change to the fleet can be made right now";
 
-    /// <summary>The table this repository ships, and the only one any caller outside it can get.</summary>
+    /// <summary>The table this repository ships; every public construction path gets this one.</summary>
     private static readonly IReadOnlyList<RouteRule> ShippedRules =
     [
         // The one state-dependent route, and the reason the sample is built around this domain:
@@ -153,12 +153,9 @@ public sealed class RoutePolicy : IRoutePolicy
     /// <summary>Builds the policy over a supplied table.</summary>
     /// <param name="rules">The table <see cref="Resolve"/> matches against.</param>
     /// <remarks>
-    /// Internal, and it exists for one reason: the unit tests hand <see cref="Resolve"/> a table
-    /// that is deliberately ambiguous or incomplete and watch it throw. That guard is about the
-    /// resolution rather than about today's rows, so it has to run against this class — a test that
-    /// re-implemented the lookup would prove only that the test's own copy used <c>Single</c>, and
-    /// would stay green if this one stopped. Nothing outside the assembly can choose the table,
-    /// because choosing it means choosing whether the policy still covers the grid.
+    /// Internal, so only this assembly and its unit tests can choose the table. It exists so that
+    /// <c>RoutePolicyTests</c> can hand <see cref="Resolve"/> a deliberately broken one: a guard on
+    /// the resolution has to run the resolution.
     /// </remarks>
     internal RoutePolicy(IReadOnlyList<RouteRule> rules) => Rules = rules;
 

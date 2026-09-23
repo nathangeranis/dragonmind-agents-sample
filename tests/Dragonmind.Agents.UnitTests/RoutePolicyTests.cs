@@ -106,23 +106,28 @@ public class RoutePolicyTests
     // The guard itself. Testing today's table proves today's table; these prove that a FUTURE
     // table which is ambiguous or incomplete fails loudly rather than resolving to something
     // plausible. Both hand a deliberately broken table to the real RoutePolicy through its
-    // internal constructor, so it is production Resolve that runs: change its Single to First and
-    // the ambiguous table resolves to whichever row was written first, so the test below stops
-    // seeing a throw and fails. A test-local re-implementation of the lookup could not say that -
-    // it would only ever prove the test's own copy used Single.
+    // internal constructor, so it is production Resolve that runs - a test-local copy of the
+    // lookup would only ever prove that the copy used Single.
+    //
+    // They catch different mutations. Change Single to First and the ambiguous table resolves to
+    // whichever row was written first, so the first test fails. First also throws on a gap, so
+    // the second test is the guard against an ...OrDefault lookup or a fallback arm instead.
     // -----------------------------------------------------------------------------------------
 
     [Fact]
     public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch()
     {
+        // Same handler twice, differing only in the refusal. Row order would then decide whether a
+        // closed-window action is refused at all, and a Resolve that only objected to rows naming
+        // different handlers would let it.
         var ambiguous = new RoutePolicy(
         [
-            new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.State),
-            new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.Explainer)
+            new RouteRule(Intent.Action, ChangeWindow.Closed, HandlerId.Explainer, RoutePolicy.ChangeWindowClosed),
+            new RouteRule(Intent.Action, ChangeWindow.Closed, HandlerId.Explainer)
         ]);
 
         Assert.Throws<InvalidOperationException>(
-            () => ambiguous.Resolve(Intent.Correction, new RoutingState(ChangeWindowOpen: true)));
+            () => ambiguous.Resolve(Intent.Action, new RoutingState(ChangeWindowOpen: false)));
     }
 
     [Fact]

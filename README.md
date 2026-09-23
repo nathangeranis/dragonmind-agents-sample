@@ -258,7 +258,7 @@ Four things move together, and the tests fail until the last of them is done:
 1. a member on `Intent`;
 2. a case on `IntentResult`, with whatever that intent carries;
 3. a `ResponseSchema` entry — the worked example and the binding that validates it;
-4. **two** rows in `RoutePolicy.Rules`, one per change-window state.
+4. **two** rows in `RoutePolicy.ShippedRules`, one per change-window state.
 
 Skip the last and `RoutePolicyTests` fails on the missing cell rather than the turn failing later at
 run time. A fourth handler is the same shape: an interface, an adapter producing its own request
