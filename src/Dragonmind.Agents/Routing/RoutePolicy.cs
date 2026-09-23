@@ -126,8 +126,8 @@ public sealed class RoutePolicy : IRoutePolicy
     public const string ChangeWindowClosed =
         "the change window is closed, so no change to the fleet can be made right now";
 
-    /// <inheritdoc />
-    public IReadOnlyList<RouteRule> Rules { get; } =
+    /// <summary>The table this repository ships, and the only one any caller outside it can get.</summary>
+    private static readonly IReadOnlyList<RouteRule> ShippedRules =
     [
         // The one state-dependent route, and the reason the sample is built around this domain:
         // identical text goes to a different handler depending on state the classifier never saw.
@@ -143,6 +143,27 @@ public sealed class RoutePolicy : IRoutePolicy
         .. InEitherWindow(Intent.Correction, HandlerId.State),
         .. InEitherWindow(Intent.Checkpoint, HandlerId.State)
     ];
+
+    /// <summary>Builds the policy over the table this repository ships.</summary>
+    public RoutePolicy()
+        : this(ShippedRules)
+    {
+    }
+
+    /// <summary>Builds the policy over a supplied table.</summary>
+    /// <param name="rules">The table <see cref="Resolve"/> matches against.</param>
+    /// <remarks>
+    /// Internal, and it exists for one reason: the unit tests hand <see cref="Resolve"/> a table
+    /// that is deliberately ambiguous or incomplete and watch it throw. That guard is about the
+    /// resolution rather than about today's rows, so it has to run against this class — a test that
+    /// re-implemented the lookup would prove only that the test's own copy used <c>Single</c>, and
+    /// would stay green if this one stopped. Nothing outside the assembly can choose the table,
+    /// because choosing it means choosing whether the policy still covers the grid.
+    /// </remarks>
+    internal RoutePolicy(IReadOnlyList<RouteRule> rules) => Rules = rules;
+
+    /// <inheritdoc />
+    public IReadOnlyList<RouteRule> Rules { get; }
 
     /// <summary>
     /// Writes the same routing decision for both window states.

@@ -105,25 +105,17 @@ public class RoutePolicyTests
     // -----------------------------------------------------------------------------------------
     // The guard itself. Testing today's table proves today's table; these prove that a FUTURE
     // table which is ambiguous or incomplete fails loudly rather than resolving to something
-    // plausible. Without them, Resolve could be using First() and every test above would still be
-    // green.
+    // plausible. Both hand a deliberately broken table to the real RoutePolicy through its
+    // internal constructor, so it is production Resolve that runs: change its Single to First and
+    // the ambiguous table resolves to whichever row was written first, so the test below stops
+    // seeing a throw and fails. A test-local re-implementation of the lookup could not say that -
+    // it would only ever prove the test's own copy used Single.
     // -----------------------------------------------------------------------------------------
-
-    private sealed class FixedTablePolicy(IReadOnlyList<RouteRule> rules) : IRoutePolicy
-    {
-        public IReadOnlyList<RouteRule> Rules { get; } = rules;
-
-        public Route Resolve(Intent intent, RoutingState state)
-        {
-            var rule = Rules.Single(r => r.Intent == intent && r.Window == state.Window);
-            return new Route(rule.Handler, rule.RefusalReason);
-        }
-    }
 
     [Fact]
     public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch()
     {
-        var ambiguous = new FixedTablePolicy(
+        var ambiguous = new RoutePolicy(
         [
             new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.State),
             new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.Explainer)
@@ -136,7 +128,7 @@ public class RoutePolicyTests
     [Fact]
     public void AGapInTheTableThrowsRatherThanFallingThrough()
     {
-        var incomplete = new FixedTablePolicy(
+        var incomplete = new RoutePolicy(
         [
             new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.State)
         ]);
