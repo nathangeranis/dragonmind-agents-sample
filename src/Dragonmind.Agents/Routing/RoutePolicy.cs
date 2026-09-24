@@ -126,8 +126,8 @@ public sealed class RoutePolicy : IRoutePolicy
     public const string ChangeWindowClosed =
         "the change window is closed, so no change to the fleet can be made right now";
 
-    /// <inheritdoc />
-    public IReadOnlyList<RouteRule> Rules { get; } =
+    /// <summary>The table this repository ships; every public construction path gets this one.</summary>
+    private static readonly IReadOnlyList<RouteRule> ShippedRules =
     [
         // The one state-dependent route, and the reason the sample is built around this domain:
         // identical text goes to a different handler depending on state the classifier never saw.
@@ -143,6 +143,24 @@ public sealed class RoutePolicy : IRoutePolicy
         .. InEitherWindow(Intent.Correction, HandlerId.State),
         .. InEitherWindow(Intent.Checkpoint, HandlerId.State)
     ];
+
+    /// <summary>Builds the policy over the table this repository ships.</summary>
+    public RoutePolicy()
+        : this(ShippedRules)
+    {
+    }
+
+    /// <summary>Builds the policy over a supplied table.</summary>
+    /// <param name="rules">The table <see cref="Resolve"/> matches against.</param>
+    /// <remarks>
+    /// Internal, so only this assembly and its unit tests can choose the table. It exists so that
+    /// <c>RoutePolicyTests</c> can hand <see cref="Resolve"/> a deliberately broken one: a guard on
+    /// the resolution has to run the resolution.
+    /// </remarks>
+    internal RoutePolicy(IReadOnlyList<RouteRule> rules) => Rules = rules;
+
+    /// <inheritdoc />
+    public IReadOnlyList<RouteRule> Rules { get; }
 
     /// <summary>
     /// Writes the same routing decision for both window states.

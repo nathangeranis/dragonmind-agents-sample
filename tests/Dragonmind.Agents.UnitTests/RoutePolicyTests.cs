@@ -105,43 +105,60 @@ public class RoutePolicyTests
     // -----------------------------------------------------------------------------------------
     // The guard itself. Testing today's table proves today's table; these prove that a FUTURE
     // table which is ambiguous or incomplete fails loudly rather than resolving to something
-    // plausible. Without them, Resolve could be using First() and every test above would still be
-    // green.
+    // plausible. Each hands the real RoutePolicy, through its internal constructor, the shipped
+    // table broken in exactly one way and otherwise intact - so it is production Resolve that
+    // runs, and the table has no other defect for it to throw on instead. Each runs for every
+    // cell, because a Resolve can be wrong for some cells and right for the rest.
+    //
+    // They guard different mistakes. First also throws on a gap, so only the first test can tell
+    // Single from First. The two gap tests are what stop a Resolve answering for a cell nobody
+    // wrote a row for, whether by inventing a route or by borrowing another row's.
     // -----------------------------------------------------------------------------------------
 
-    private sealed class FixedTablePolicy(IReadOnlyList<RouteRule> rules) : IRoutePolicy
+    [Theory]
+    [MemberData(nameof(EveryCell))]
+    public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch(Intent intent, bool windowOpen)
     {
-        public IReadOnlyList<RouteRule> Rules { get; } = rules;
+        // One cell's row written a second time. A second row sending the turn to another handler is
+        // the case that matters: First would let row position choose the route. An exact copy
+        // changes no route, but it is still a table somebody got wrong, and Resolve must not
+        // quietly merge it either.
+        var state = new RoutingState(windowOpen);
+        var row = Assert.Single(_policy.Rules, r => (r.Intent, r.Window) == (intent, state.Window));
+        var otherHandler = Enum.GetValues<HandlerId>().First(h => h != row.Handler);
 
-        public Route Resolve(Intent intent, RoutingState state)
-        {
-            var rule = Rules.Single(r => r.Intent == intent && r.Window == state.Window);
-            return new Route(rule.Handler, rule.RefusalReason);
-        }
+        var conflicting = new RoutePolicy([.. _policy.Rules, row with { Handler = otherHandler }]);
+        var duplicated = new RoutePolicy([.. _policy.Rules, row]);
+
+        Assert.Throws<InvalidOperationException>(() => conflicting.Resolve(intent, state));
+        Assert.Throws<InvalidOperationException>(() => duplicated.Resolve(intent, state));
     }
 
-    [Fact]
-    public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch()
+    [Theory]
+    [MemberData(nameof(EveryCell))]
+    public void AGapInTheTableThrowsRatherThanFallingThrough(Intent intent, bool windowOpen)
     {
-        var ambiguous = new FixedTablePolicy(
-        [
-            new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.State),
-            new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.Explainer)
-        ]);
+        // One cell's row removed and every other row left in place, so a fallback that borrowed a
+        // neighbouring row - the same intent's other window, or another intent's - finds one here.
+        var window = windowOpen ? ChangeWindow.Open : ChangeWindow.Closed;
+        var incomplete = new RoutePolicy([.. _policy.Rules.Where(r => (r.Intent, r.Window) != (intent, window))]);
 
+        Assert.Equal(_policy.Rules.Count - 1, incomplete.Rules.Count);
         Assert.Throws<InvalidOperationException>(
-            () => ambiguous.Resolve(Intent.Correction, new RoutingState(ChangeWindowOpen: true)));
+            () => incomplete.Resolve(intent, new RoutingState(windowOpen)));
     }
 
-    [Fact]
-    public void AGapInTheTableThrowsRatherThanFallingThrough()
+    [Theory]
+    [MemberData(nameof(EveryCell))]
+    public void AnIntentWithNoRowsThrowsRatherThanFallingThrough(Intent intent, bool windowOpen)
     {
-        var incomplete = new FixedTablePolicy(
-        [
-            new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.State)
-        ]);
+        // A forgotten intent - how the README's "Adding a fifth intent" goes wrong - is missing both
+        // rows, not one. A default route for an intent the table has no rows for never fires in the
+        // test above, because there the other window's row is still present.
+        var incomplete = new RoutePolicy([.. _policy.Rules.Where(r => r.Intent != intent)]);
 
+        Assert.Equal(_policy.Rules.Count - Enum.GetValues<ChangeWindow>().Length, incomplete.Rules.Count);
         Assert.Throws<InvalidOperationException>(
-            () => incomplete.Resolve(Intent.Correction, new RoutingState(ChangeWindowOpen: false)));
+            () => incomplete.Resolve(intent, new RoutingState(windowOpen)));
     }
 }
