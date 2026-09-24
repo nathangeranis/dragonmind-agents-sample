@@ -105,30 +105,33 @@ public class RoutePolicyTests
     // -----------------------------------------------------------------------------------------
     // The guard itself. Testing today's table proves today's table; these prove that a FUTURE
     // table which is ambiguous or incomplete fails loudly rather than resolving to something
-    // plausible. Both hand a deliberately broken table to the real RoutePolicy through its
-    // internal constructor, so it is production Resolve that runs - a test-local copy of the
-    // lookup would only ever prove that the copy used Single.
+    // plausible. Each hands the real RoutePolicy, through its internal constructor, the shipped
+    // table broken in exactly one way and otherwise intact - so it is production Resolve that
+    // runs, and the table has no other defect for it to throw on instead.
     //
-    // They catch different mutations. Change Single to First and an ambiguous table resolves to
+    // They catch different mutations. Change Single to First and an ambiguous cell resolves to
     // whichever row was written first, so the first test fails. First also throws on a gap, so
-    // the second test is the guard against a Resolve that answers for a cell nobody wrote a row
-    // for - whether it invents a route or borrows another row's.
+    // the two gap tests are what stop a Resolve answering for a cell nobody wrote a row for,
+    // whether by inventing a route or by borrowing another row's.
     // -----------------------------------------------------------------------------------------
 
     [Theory]
     [InlineData(HandlerId.Explainer, null)]
     [InlineData(HandlerId.Policy, RoutePolicy.ChangeWindowClosed)]
+    [InlineData(HandlerId.Explainer, RoutePolicy.ChangeWindowClosed)]
     public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch(HandlerId handler, string? refusalReason)
     {
-        // The second row differs from the first in exactly one field: the refusal in one case, the
-        // handler in the other. A Resolve that threw only when one particular field disagreed would
-        // fail one of the two cases.
+        // The closed-window action cell gets two rows. The second differs from the first in only
+        // the refusal, only the handler, or nothing at all - so a Resolve that threw only when one
+        // particular field disagreed, or that collapsed identical rows, fails one of the cases.
         var ambiguous = new RoutePolicy(
         [
+            .. _policy.Rules.Where(r => (r.Intent, r.Window) != (Intent.Action, ChangeWindow.Closed)),
             new RouteRule(Intent.Action, ChangeWindow.Closed, HandlerId.Explainer, RoutePolicy.ChangeWindowClosed),
             new RouteRule(Intent.Action, ChangeWindow.Closed, handler, refusalReason)
         ]);
 
+        Assert.Equal(_policy.Rules.Count + 1, ambiguous.Rules.Count);
         Assert.Throws<InvalidOperationException>(
             () => ambiguous.Resolve(Intent.Action, new RoutingState(ChangeWindowOpen: false)));
     }
@@ -137,14 +140,26 @@ public class RoutePolicyTests
     [MemberData(nameof(EveryCell))]
     public void AGapInTheTableThrowsRatherThanFallingThrough(Intent intent, bool windowOpen)
     {
-        // The shipped table minus exactly one row, for every cell. Leaving every other row in place
-        // is the point: a fallback that borrowed a neighbouring row - the same intent's other
-        // window, or another intent's - finds one here, and a fallback that only applied to some
-        // cells cannot avoid all eight.
+        // One cell's row removed and every other row left in place, so a fallback that borrowed a
+        // neighbouring row - the same intent's other window, or another intent's - finds one here.
         var window = windowOpen ? ChangeWindow.Open : ChangeWindow.Closed;
         var incomplete = new RoutePolicy([.. _policy.Rules.Where(r => (r.Intent, r.Window) != (intent, window))]);
 
         Assert.Equal(_policy.Rules.Count - 1, incomplete.Rules.Count);
+        Assert.Throws<InvalidOperationException>(
+            () => incomplete.Resolve(intent, new RoutingState(windowOpen)));
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryCell))]
+    public void AnIntentWithNoRowsThrowsRatherThanFallingThrough(Intent intent, bool windowOpen)
+    {
+        // A forgotten intent - how the README's "Adding a fifth intent" goes wrong - is missing both
+        // rows, not one. A default route for an intent the table has no rows for never fires in the
+        // test above, because there the other window's row is still present.
+        var incomplete = new RoutePolicy([.. _policy.Rules.Where(r => r.Intent != intent)]);
+
+        Assert.Equal(_policy.Rules.Count - Enum.GetValues<ChangeWindow>().Length, incomplete.Rules.Count);
         Assert.Throws<InvalidOperationException>(
             () => incomplete.Resolve(intent, new RoutingState(windowOpen)));
     }
