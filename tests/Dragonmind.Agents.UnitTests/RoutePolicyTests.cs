@@ -107,33 +107,31 @@ public class RoutePolicyTests
     // table which is ambiguous or incomplete fails loudly rather than resolving to something
     // plausible. Each hands the real RoutePolicy, through its internal constructor, the shipped
     // table broken in exactly one way and otherwise intact - so it is production Resolve that
-    // runs, and the table has no other defect for it to throw on instead.
+    // runs, and the table has no other defect for it to throw on instead. Each runs for every
+    // cell, because a Resolve can be wrong for some cells and right for the rest.
     //
-    // They catch different mutations. Change Single to First and an ambiguous cell resolves to
-    // whichever row was written first, so the first test fails. First also throws on a gap, so
-    // the two gap tests are what stop a Resolve answering for a cell nobody wrote a row for,
-    // whether by inventing a route or by borrowing another row's.
+    // They guard different mistakes. First also throws on a gap, so only the first test can tell
+    // Single from First. The two gap tests are what stop a Resolve answering for a cell nobody
+    // wrote a row for, whether by inventing a route or by borrowing another row's.
     // -----------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(HandlerId.Explainer, null)]
-    [InlineData(HandlerId.Policy, RoutePolicy.ChangeWindowClosed)]
-    [InlineData(HandlerId.Explainer, RoutePolicy.ChangeWindowClosed)]
-    public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch(HandlerId handler, string? refusalReason)
+    [MemberData(nameof(EveryCell))]
+    public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch(Intent intent, bool windowOpen)
     {
-        // The closed-window action cell gets two rows. The second differs from the first in only
-        // the refusal, only the handler, or nothing at all - so a Resolve that threw only when one
-        // particular field disagreed, or that collapsed identical rows, fails one of the cases.
-        var ambiguous = new RoutePolicy(
-        [
-            .. _policy.Rules.Where(r => (r.Intent, r.Window) != (Intent.Action, ChangeWindow.Closed)),
-            new RouteRule(Intent.Action, ChangeWindow.Closed, HandlerId.Explainer, RoutePolicy.ChangeWindowClosed),
-            new RouteRule(Intent.Action, ChangeWindow.Closed, handler, refusalReason)
-        ]);
+        // One cell's row written a second time. A second row sending the turn to another handler is
+        // the case that matters: First would let row position choose the route. An exact copy
+        // changes no route, but it is still a table somebody got wrong, and Resolve must not
+        // quietly merge it either.
+        var state = new RoutingState(windowOpen);
+        var row = Assert.Single(_policy.Rules, r => (r.Intent, r.Window) == (intent, state.Window));
+        var otherHandler = Enum.GetValues<HandlerId>().First(h => h != row.Handler);
 
-        Assert.Equal(_policy.Rules.Count + 1, ambiguous.Rules.Count);
-        Assert.Throws<InvalidOperationException>(
-            () => ambiguous.Resolve(Intent.Action, new RoutingState(ChangeWindowOpen: false)));
+        var conflicting = new RoutePolicy([.. _policy.Rules, row with { Handler = otherHandler }]);
+        var duplicated = new RoutePolicy([.. _policy.Rules, row]);
+
+        Assert.Throws<InvalidOperationException>(() => conflicting.Resolve(intent, state));
+        Assert.Throws<InvalidOperationException>(() => duplicated.Resolve(intent, state));
     }
 
     [Theory]
