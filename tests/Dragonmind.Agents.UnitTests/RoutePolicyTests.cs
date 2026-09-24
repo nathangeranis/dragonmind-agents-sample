@@ -109,36 +109,43 @@ public class RoutePolicyTests
     // internal constructor, so it is production Resolve that runs - a test-local copy of the
     // lookup would only ever prove that the copy used Single.
     //
-    // They catch different mutations. Change Single to First and the ambiguous table resolves to
+    // They catch different mutations. Change Single to First and an ambiguous table resolves to
     // whichever row was written first, so the first test fails. First also throws on a gap, so
-    // the second test is the guard against an ...OrDefault lookup or a fallback arm instead.
+    // the second test is the guard against a Resolve that answers for a cell nobody wrote a row
+    // for - whether it invents a route or borrows another row's.
     // -----------------------------------------------------------------------------------------
 
-    [Fact]
-    public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch()
+    [Theory]
+    [InlineData(HandlerId.Explainer, null)]
+    [InlineData(HandlerId.Policy, RoutePolicy.ChangeWindowClosed)]
+    public void AnAmbiguousTableThrowsRatherThanPickingTheFirstMatch(HandlerId handler, string? refusalReason)
     {
-        // Same handler twice, differing only in the refusal. Row order would then decide whether a
-        // closed-window action is refused at all, and a Resolve that only objected to rows naming
-        // different handlers would let it.
+        // The second row differs from the first in exactly one field: the refusal in one case, the
+        // handler in the other. A Resolve that threw only when one particular field disagreed would
+        // fail one of the two cases.
         var ambiguous = new RoutePolicy(
         [
             new RouteRule(Intent.Action, ChangeWindow.Closed, HandlerId.Explainer, RoutePolicy.ChangeWindowClosed),
-            new RouteRule(Intent.Action, ChangeWindow.Closed, HandlerId.Explainer)
+            new RouteRule(Intent.Action, ChangeWindow.Closed, handler, refusalReason)
         ]);
 
         Assert.Throws<InvalidOperationException>(
             () => ambiguous.Resolve(Intent.Action, new RoutingState(ChangeWindowOpen: false)));
     }
 
-    [Fact]
-    public void AGapInTheTableThrowsRatherThanFallingThrough()
+    [Theory]
+    [MemberData(nameof(EveryCell))]
+    public void AGapInTheTableThrowsRatherThanFallingThrough(Intent intent, bool windowOpen)
     {
-        var incomplete = new RoutePolicy(
-        [
-            new RouteRule(Intent.Correction, ChangeWindow.Open, HandlerId.State)
-        ]);
+        // The shipped table minus exactly one row, for every cell. Leaving every other row in place
+        // is the point: a fallback that borrowed a neighbouring row - the same intent's other
+        // window, or another intent's - finds one here, and a fallback that only applied to some
+        // cells cannot avoid all eight.
+        var window = windowOpen ? ChangeWindow.Open : ChangeWindow.Closed;
+        var incomplete = new RoutePolicy([.. _policy.Rules.Where(r => (r.Intent, r.Window) != (intent, window))]);
 
+        Assert.Equal(_policy.Rules.Count - 1, incomplete.Rules.Count);
         Assert.Throws<InvalidOperationException>(
-            () => incomplete.Resolve(Intent.Correction, new RoutingState(ChangeWindowOpen: false)));
+            () => incomplete.Resolve(intent, new RoutingState(windowOpen)));
     }
 }
